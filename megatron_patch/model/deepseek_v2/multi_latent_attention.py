@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Union
 
 import torch
+import torch.nn.functional as F
 
 from megatron.core import parallel_state
 from megatron.core.models.common.embeddings import (
@@ -14,7 +15,7 @@ from megatron.core.models.common.embeddings import (
     apply_rotary_pos_emb,
 )
 from megatron.core.transformer.attention import Attention
-from megatron.core.transformer.enums import AttnMaskType
+from megatron.core.transformer.enums import AttnMaskType, AttnBackend
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_config import MLATransformerConfig
 
@@ -155,6 +156,9 @@ class MultiLatentAttention(Attention):
         # ==================================
         # core attention computation
         # ==================================
+        # LFu: Pad value_states in MLA when attention backend is Flash Attention
+        if self.q_head_dim != self.config.v_head_dim and self.config.attention_backend == AttnBackend.flash:
+            value = F.pad(value, [0, self.q_head_dim - self.config.v_head_dim])
         # Need corresponding TE change
         if self.checkpoint_core_attention and self.training:
             core_attn_out = self._checkpointed_attention_forward(
