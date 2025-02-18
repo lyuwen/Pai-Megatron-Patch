@@ -39,6 +39,7 @@ from megatron_patch.model.deepseek_v2.model import GPTModel
 from megatron_patch.model.deepseek_v2.layer_specs import (
     get_gpt_layer_with_transformer_engine_spec,
 )
+from megatron_patch.model.deepseek_v2.utils import get_moe_model_size, get_moe_activated_size, get_moe_FLOPs
 
 torch._dynamo.config.suppress_errors = True
 
@@ -59,6 +60,8 @@ def model_provider(
         )
     else:
         raise ValueError("Current only support TE")
+    print_rank_0(f"Number of trainable parameters in the model (exclude embedding): {get_moe_model_size(args):,d}")
+    print_rank_0(f"Number of activated parameters in the model (exclude embedding): {get_moe_activated_size(args):,d}")
 
     model = GPTModel(
         config=config,
@@ -261,4 +264,5 @@ if __name__ == "__main__":
         ModelType.encoder_or_decoder,
         forward_step,
         extra_args_provider=get_patch_args,
+        num_floating_point_operations=get_moe_FLOPs,
     )
