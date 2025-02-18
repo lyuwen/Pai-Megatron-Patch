@@ -91,7 +91,8 @@ class MultiLatentAttention(Attention):
             attention_type=self.attention_type,
             softmax_scale=self.softmax_scale,
             k_channels=self.q_head_dim,
-            v_channels=self.config.v_head_dim,
+            v_channels=self.q_head_dim if self.config.attention_backend == AttnBackend.flash else self.config.v_head_dim,
+            # v_channels=self.config.v_head_dim,
             cp_comm_type=cp_comm_type,
         )
 
@@ -173,6 +174,13 @@ class MultiLatentAttention(Attention):
                 packed_seq_params=packed_seq_params,
                 attn_mask_type=attn_mask_type,
             )
+        # LFu: Remove padding
+        if self.q_head_dim != self.config.v_head_dim and self.config.attention_backend == AttnBackend.flash:
+            q_len, bsz, nh = hidden_states.size()
+            n = nh // self.config.v_head_dim
+            core_attn_out = core_attn_out.reshape((q_len, bsz, n, self.q_head_dim))
+            core_attn_out = core_attn_out[:, :, :, : self.config.v_head_dim]
+            core_attn_out = core_attn_out.reshape((q_len, bsz, nh))
 
         if packed_seq_params is not None:
             # reshape to same output shape as unpacked case
